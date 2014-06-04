@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<style>
+
+.axis text {
+  font: 10px sans-serif;
+}
+
+.axis path,
+.axis line {
+  fill: none;
+  stroke: #000;
+  shape-rendering: crispEdges;
+}
+
+.hexagon {
+  fill: none;
+  stroke: #000;
+  stroke-width: .5px;
+}
+
+</style>
+<body>
+<script src="http://d3js.org/d3.v3.min.js"></script>
+<script src="./plugin/analyseTeamCooperation/protocol/lib/jquery-1.11.1.js"></script>
+<script src="./plugin/analyseTeamCooperation/protocol/lib/hexbin.js"></script>
+
+<div id="storyPicture"></div>
+<script>
+var positionX = {max : 0, min : 20}, positionY = {max : 0, min : 20};
+var di = 17, dj = 17;
+function getURLParameter(paramName) {
+  	var searchString = decodeURI(window.location.search).substring(1);
+  	var val;
+  	var params = searchString.split("&");
+
+  	for (var i = 0; i < params.length; i++) {
+    	val = params[i].split("=");
+	    if (val[0] == paramName) {
+	      	return unescape(val[1]);
+	    }
+  	}
+  	return null;
+}
+
+var margin = {top: 20, right: 20, bottom: 30, left: 40},
+    width = 800 - margin.left - margin.right,
+    height = 600 - margin.top - margin.bottom;
+
+var color = d3.scale.linear()
+    .domain([0, 20])
+    .range(["white", "red"])
+    .interpolate(d3.interpolateLab);
+
+var hexbin = d3.hexbin()
+    .size([width, height])
+    .radius(20);
+
+var x = d3.scale.identity()
+    .domain([0, width]);
+
+var y = d3.scale.linear()
+    .domain([0, height])
+    .range([height, 0]);
+
+var xAxis = d3.svg.axis()
+    .scale(x)
+    .orient("bottom")
+    .tickSize(6, -height);
+
+var yAxis = d3.svg.axis()
+    .scale(y)
+    .orient("left")
+    .tickSize(6, -width);
+
+var svg = d3.select("#storyPicture").append("svg")
+    .attr("width", width + margin.left + margin.right)
+    .attr("height", height + margin.top + margin.bottom)
+  	.append("g")
+    .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+svg.append("clipPath")
+    .attr("id", "clip")
+  	.append("rect")
+    .attr("class", "mesh")
+    .attr("width", width)
+    .attr("height", height);
+
+svg.append("g")
+    .attr("clip-path", "url(#clip)")
+  	.selectAll(".hexagon")
+    .data(hexbin(di, dj))
+  	.enter().append("path")
+    .attr("class", function(d) {return "hexagon i-" + d.i + "-j-" + d.j})
+    .attr("d", hexbin.hexagon())
+    .attr("transform", function(d) { 
+    	// set the range about hexagon array
+    	positionX.max  < d.i ? positionX.max = d.i : "";
+    	positionX.min  > d.i ? positionX.min = d.i : "";
+    	positionY.max  < d.j ? positionY.max = d.j : "";
+    	positionY.min  > d.j ? positionY.min = d.j : "";
+    	// change all hexagon position
+    	return "translate(" + d.x + "," + d.y + ")";
+    })
+
+$.getJSON("plugin/AnalyseTeamCooperation/getStoryPage", 
+{
+	releases : getURLParameter("releases"), 
+	sprints : getURLParameter("sprints")
+}, function(data) {
+	// find mid point
+	var midX = Math.round((positionX.max - positionX.min)/2) + 1;
+	var midY = Math.round((positionY.max - positionY.min)/2) + 1;
+	
+	// piar programming 0,1,2
+	var pairStep = 2;
+	var pairMap = {};
+	for (var j = midY - pairStep; j <= midY + pairStep; j++) {
+		var startX = 2, endX = 2;
+		if (j == midY - pairStep || j == midY + pairStep) {
+			startX = 1;
+			endX = 1;
+		} else if (j == midY - 1 || j == midY + 1) {
+			startX = 1;
+			endX = 2;
+		} else {
+			startX = 2;
+			endX = 2;
+		}
+		for (var i = midX - startX; i <= midX + endX; i++) {
+			pairMap[i + "," + j] = i + "," + j; 
+			svg.select(".i-" + i + "-j-" + j).style("fill", function() {
+				return color(data.pairProgramming);
+			});
+		}
+	}
+
+	// cooperation 3,4,5
+	var cooperationStep = 5;
+	var cooperationMap = {};
+	for (var j = midY - cooperationStep; j <= midY + cooperationStep; j++) {
+		var startX = cooperationStep, endX = cooperationStep;
+		if (j == midY - cooperationStep || j == midY + cooperationStep) {
+			startX = startX - 3;
+			endX = endX - 2;
+		} else if (j == midY + cooperationStep - 1 || j == midY - cooperationStep + 1) {
+			startX =  startX - 2;
+			endX = endX - 2;
+		} else if (j == midY + cooperationStep - 2 || j == midY - cooperationStep + 2) {
+			startX =  startX - 2;
+			endX = endX - 1;
+		} else if (j == midY + cooperationStep - 3 || j == midY - cooperationStep + 3) {
+			startX =  startX - 1;
+			endX = endX - 1;
+		} else if (j == midY + cooperationStep - 4 || j == midY - cooperationStep + 4) {
+			startX =  startX - 1;
+			endX = endX;
+		} else {
+			startX = cooperationStep;
+			endX = cooperationStep;
+		}
+		for (var i = midX - startX; i <= midX + endX; i++) {
+			var key = i + "," + j;
+			if (key in pairMap) continue;
+			else {
+				cooperationMap[i + "," + j] = i + "," + j; 
+			}
+			svg.select(".i-" + i + "-j-" + j).style("fill", function() {
+				return color(data.cooperation);
+			});
+		}
+	}
+
+	// cooperation 6.7.8
+	var nonCooperationStep = 8;
+	var nonCooperationMap = {};
+	for (var j = midY - nonCooperationStep; j <= midY + nonCooperationStep; j++) {
+		var startX = nonCooperationStep, endX = nonCooperationStep;
+		if (j == midY - nonCooperationStep || j == midY + nonCooperationStep) {
+			startX = startX - 4;
+			endX = endX - 4;
+		} else if (j == midY + nonCooperationStep - 1 || j == midY - nonCooperationStep + 1) {
+			startX =  startX - 4;
+			endX = endX - 3;
+		} else if (j == midY + nonCooperationStep - 2 || j == midY - nonCooperationStep + 2) {
+			startX =  startX - 3;
+			endX = endX - 3;
+		} else if (j == midY + nonCooperationStep - 3 || j == midY - nonCooperationStep + 3) {
+			startX =  startX - 3;
+			endX = endX - 2;
+		} else if (j == midY + nonCooperationStep - 4 || j == midY - nonCooperationStep + 4) {
+			startX =  startX - 2;
+			endX = endX - 2;
+		} else if (j == midY + nonCooperationStep - 5 || j == midY - nonCooperationStep + 5) {
+			startX =  startX - 2;
+			endX = endX - 1;
+		} else if (j == midY + nonCooperationStep - 6 || j == midY - nonCooperationStep + 6) {
+			startX =  startX - 1;
+			endX = endX - 1;
+		} else if (j == midY + nonCooperationStep - 7 || j == midY - nonCooperationStep + 7) {
+			startX =  startX - 1;
+			endX = endX;
+		} else {
+			startX = nonCooperationStep;
+			endX = nonCooperationStep;
+		}
+		for (var i = midX - startX; i <= midX + endX; i++) {
+			var key = i + "," + j;
+			if (key in pairMap || key in cooperationMap) continue;
+			else {
+				nonCooperationMap[i + "," + j] = i + "," + j; 
+			}
+			svg.select(".i-" + i + "-j-" + j).style("fill", function() {
+				return color(data.nonCooperation);
+			});
+		}
+	}
+	for (var j = midY - nonCooperationStep; j <= midY + nonCooperationStep; j++) {
+		for (var i = midX - nonCooperationStep; i <= midX + nonCooperationStep; i++) {
+			var key = i + "," + j;
+			if (key in pairMap || key in cooperationMap || key in nonCooperationMap) continue;
+			svg.select(".i-" + i + "-j-" + j).remove();
+		}
+	}
+	
+	svg.selectAll(".hexagon").on("mousedown", function(d) {
+    	alert(d.i + ", " + d.j);
+    });  
+});
+
+/*
+svg.append("g")
+    .attr("class", "y axis")
+    .call(yAxis);
+
+svg.append("g")
+    .attr("class", "x axis")
+    .attr("transform", "translate(0," + height + ")")
+    .call(xAxis);
+*/
+</script>

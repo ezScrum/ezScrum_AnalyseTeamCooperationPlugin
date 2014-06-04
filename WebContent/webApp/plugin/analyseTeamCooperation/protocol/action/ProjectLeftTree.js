@@ -36,7 +36,7 @@ Plugin.analyseTeamCooperation.projectLeftTree.TreePlugin = Ext.extend(Object, {
 				leaf:true,
 				listeners: {
 					click: function(node, event) {
-						var index = Ext.getCmp('content_panel').items.keys.indexOf("peoplePage");
+						var index = Ext.getCmp('content_panel').items.keys.indexOf("teamPage");
 						Ext.getCmp('content_panel').layout.setActiveItem(index);
 						Ext.getCmp('left_panel').Plugin_Clicked = true;
 					}

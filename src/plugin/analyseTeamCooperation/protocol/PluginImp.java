@@ -12,7 +12,7 @@ public class PluginImp extends UIConfig {
 	@Override
 	public void setEzScrumUIList(List<EzScrumUI> ezScrumUIList) {
 		/**
-		 * add PluginUI to  ezScrumUIList for DoD Plug-in
+		 * add PluginUI to ezScrumUIList for Plug-in management
 		 */
 		final PluginUI pluginUI = new PluginUI() {
 			public String getPluginID() {
@@ -38,7 +38,7 @@ public class PluginImp extends UIConfig {
             public List<String> getProjectPageIDList() {
 				List<String> projectPageIDList = new ArrayList<String>();
 				projectPageIDList.add("analyseTeamCooperation_storyPage");
-				projectPageIDList.add("analyseTeamCooperation_peoplePage");
+				projectPageIDList.add("analyseTeamCooperation_teamPage");
 				return projectPageIDList;
             }
 
