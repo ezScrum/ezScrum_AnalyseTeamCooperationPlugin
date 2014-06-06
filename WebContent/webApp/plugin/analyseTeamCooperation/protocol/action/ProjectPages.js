@@ -289,7 +289,19 @@ Ext.preg('analyseTeamCooperation_storyPage', Plugin.analyseTeamCooperation.story
  * -----------------------------
  */
 
-
+Plugin.analyseTeamCooperation.teamChartPanel = Ext.extend(Ext.Panel, {
+	border		: true,
+	layout		: {
+		type: 'hbox',
+		pack: 'center',
+		align: 'top'
+	},
+	autoHeight	: true,
+	width		: '100%',
+	height		: '100%',
+	autoScroll	: true
+});
+Ext.reg('analyseTeamCooperation_teamCartPanel', Plugin.analyseTeamCooperation.teamChartPanel);
 
 /**
  * -----------------------------
@@ -307,25 +319,33 @@ Plugin.analyseTeamCooperation.teamPage = Ext.extend(Ext.Panel, {
 			id			: 'teamPage',
 			title		: 'Team Analysis',
 			height		: 300,
-			width		: '25%',
+			width		: '100%',
+			height		: '100%',
 			autoScroll	: true,
 			bodyStyle	: 'padding: 10px;',
 			releases	: [],
 			initComponent: function() {
 				var config = {
 						items: [{
-								xtype	: '', 
-								ref		: '',
-								id		: ''
-							}, {
-								xtype	: '',
-								ref		: '',
-								id		: ''
+								xtype	: 'analyseTeamCooperation_teamCartPanel', 
+								ref		: 'analyseTeamCooperation_teamCartPanel_ID',
+								id		: 'analyseTeamCooperation_teamCartPanel_ID'
 							}
 						]
 					}
 				Ext.apply(this, Ext.apply(this.initialConfig, config));
 				Plugin.analyseTeamCooperation.teamPage.superclass.initComponent.apply(this, arguments);
+				
+
+				var queryString = "PID=" + getURLParameter("PID");
+				var chartPanel = Ext.getCmp('analyseTeamCooperation_teamCartPanel_ID');
+				chartPanel.removeAll();
+				chartPanel.add({
+						html: '<iframe src="pluginWorkspace/AnalyseTeamCooperationPlugin/webApp/team.html?' + queryString + '" width="1000" height="600" frameborder="0" scrolling="auto"></iframe>',
+						border: false
+					}
+				);
+				chartPanel.doLayout();
 			}
 		});
 

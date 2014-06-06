@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <meta charset="utf-8">
 <style>
-
+/*
 .axis text {
   font: 10px sans-serif;
 }
@@ -19,16 +19,45 @@
   stroke-width: .5px;
 }
 
+*/
+
+.axis text {
+  font: 10px sans-serif;
+}
+
+.axis path,
+.axis line {
+  fill: none;
+  stroke: #000;
+  shape-rendering: crispEdges;
+}
+
+.hexagon {
+  fill: steelblue;
+  stroke: #fff;
+  stroke-width: .5px;
+}
+
+.node {
+	width: 5px;
+	height: 5px;
+	border: 1px solid #000;
+  	float: left;
+}
+
 </style>
 <body>
 <script src="http://d3js.org/d3.v3.min.js"></script>
-<script src="./plugin/analyseTeamCooperation/protocol/lib/jquery-1.11.1.js"></script>
 <script src="./plugin/analyseTeamCooperation/protocol/lib/hexbin.js"></script>
 
+<div id="colorDepth">
+</div>
 <div id="storyPicture"></div>
 <script>
+
 var positionX = {max : 0, min : 20}, positionY = {max : 0, min : 20};
 var di = 17, dj = 17;
+
 function getURLParameter(paramName) {
   	var searchString = decodeURI(window.location.search).substring(1);
   	var val;
@@ -40,12 +69,16 @@ function getURLParameter(paramName) {
 	      	return unescape(val[1]);
 	    }
   	}
-  	return null;
+  	return "";
 }
 
 var margin = {top: 20, right: 20, bottom: 30, left: 40},
     width = 800 - margin.left - margin.right,
     height = 600 - margin.top - margin.bottom;
+
+var radius = d3.scale.sqrt()
+	.domain([0, 50])
+	.range([0, 20]);
 
 var color = d3.scale.linear()
     .domain([0, 20])
@@ -62,16 +95,26 @@ var x = d3.scale.identity()
 var y = d3.scale.linear()
     .domain([0, height])
     .range([height, 0]);
-
+var dataset = [
+               {"keyword": "payday loans", "global": 1400000, "local": 673000, "cpc": "14.11"},
+               {"keyword": "title loans", "global": 165000, "local": 160000, "cpc": "12.53" },
+               {"keyword": "personal loans", "global": 550000, "local": 301000, "cpc": "6.14"},
+               {"keyword": "online personal loans", "global": 15400, "local": 12900, "cpc": "5.84"},
+               {"keyword": "online title loans", "global": 111600, "local": 11500, "cpc": "11.74"}
+           ];var formatAxis = d3.format("  0");
 var xAxis = d3.svg.axis()
     .scale(x)
-    .orient("bottom")
-    .tickSize(6, -height);
+    .tickFormat(formatAxis)
+        .ticks(3)
+        .tickValues(["aa", 200, 300])
+    
+    .orient("bottom");
+    //.tickSize(6, -height);
 
 var yAxis = d3.svg.axis()
     .scale(y)
-    .orient("left")
-    .tickSize(6, -width);
+    .orient("left");
+    //.tickSize(6, -width);
 
 var svg = d3.select("#storyPicture").append("svg")
     .attr("width", width + margin.left + margin.right)
@@ -85,14 +128,15 @@ svg.append("clipPath")
     .attr("class", "mesh")
     .attr("width", width)
     .attr("height", height);
-
+    
 svg.append("g")
     .attr("clip-path", "url(#clip)")
   	.selectAll(".hexagon")
     .data(hexbin(di, dj))
   	.enter().append("path")
     .attr("class", function(d) {return "hexagon i-" + d.i + "-j-" + d.j})
-    .attr("d", hexbin.hexagon())
+    //.attr("d", hexbin.hexagon())
+    //.attr("d", function(d) { return hexbin.hexagon(radius(50)); })
     .attr("transform", function(d) { 
     	// set the range about hexagon array
     	positionX.max  < d.i ? positionX.max = d.i : "";
@@ -101,13 +145,24 @@ svg.append("g")
     	positionY.min  > d.j ? positionY.min = d.j : "";
     	// change all hexagon position
     	return "translate(" + d.x + "," + d.y + ")";
-    })
+    });
 
-$.getJSON("plugin/AnalyseTeamCooperation/getStoryPage", 
-{
-	releases : getURLParameter("releases"), 
-	sprints : getURLParameter("sprints")
-}, function(data) {
+/*
+svg.append("text")
+.attr("class", "x label")
+.attr("text-anchor", "end")
+.attr("x", width)
+.attr("y", height - 6)
+.text("Non-Collaboration     Collaboration    Pair-programming");
+  */  
+
+//$.getJSON("plugin/AnalyseTeamCooperation/getStoryPage", 
+//{
+//	releases : getURLParameter("releases"), 
+//	sprints : getURLParameter("sprints")
+//}, function(data) {
+d3.json("plugin/AnalyseTeamCooperation/getStoryPage?releases=" + getURLParameter('releases') + "&sprints=" + getURLParameter('sprints')
+, function(error, data) {
 	// find mid point
 	var midX = Math.round((positionX.max - positionX.min)/2) + 1;
 	var midY = Math.round((positionY.max - positionY.min)/2) + 1;
@@ -129,7 +184,9 @@ $.getJSON("plugin/AnalyseTeamCooperation/getStoryPage",
 		}
 		for (var i = midX - startX; i <= midX + endX; i++) {
 			pairMap[i + "," + j] = i + "," + j; 
-			svg.select(".i-" + i + "-j-" + j).style("fill", function() {
+			svg.select(".i-" + i + "-j-" + j)
+			.attr("d", function() { return hexbin.hexagon(radius(data.pairProgramming)); })
+			.style("fill", function() {
 				return color(data.pairProgramming);
 			});
 		}
@@ -165,13 +222,15 @@ $.getJSON("plugin/AnalyseTeamCooperation/getStoryPage",
 			else {
 				cooperationMap[i + "," + j] = i + "," + j; 
 			}
-			svg.select(".i-" + i + "-j-" + j).style("fill", function() {
+			svg.select(".i-" + i + "-j-" + j)
+			.attr("d", function() { return hexbin.hexagon(radius(data.cooperation)); })
+			.style("fill", function() {
 				return color(data.cooperation);
 			});
 		}
 	}
 
-	// cooperation 6.7.8
+	// cooperation 6,7,8
 	var nonCooperationStep = 8;
 	var nonCooperationMap = {};
 	for (var j = midY - nonCooperationStep; j <= midY + nonCooperationStep; j++) {
@@ -210,7 +269,9 @@ $.getJSON("plugin/AnalyseTeamCooperation/getStoryPage",
 			else {
 				nonCooperationMap[i + "," + j] = i + "," + j; 
 			}
-			svg.select(".i-" + i + "-j-" + j).style("fill", function() {
+			svg.select(".i-" + i + "-j-" + j)
+			.attr("d", function() { return hexbin.hexagon(radius(data.nonCooperation)); })
+			.style("fill", function() {
 				return color(data.nonCooperation);
 			});
 		}
@@ -229,6 +290,20 @@ $.getJSON("plugin/AnalyseTeamCooperation/getStoryPage",
 });
 
 /*
+var colorSvg = d3.select("#colorDepth")
+	.append("svg")
+	.selectAll(".node")
+	.data([1,2,3,4,5,6,7,8,9,10])
+	.enter().append("div")
+	.attr("class", "node")
+	.attr("transform", function(d) { 
+    	// change all hexagon position
+    	return "translate(" + d + "0, 10)";
+    }).style("fill", function(d) {
+		return color(50);
+	});
+
+
 svg.append("g")
     .attr("class", "y axis")
     .call(yAxis);
@@ -237,5 +312,6 @@ svg.append("g")
     .attr("class", "x axis")
     .attr("transform", "translate(0," + height + ")")
     .call(xAxis);
+    
 */
 </script>
