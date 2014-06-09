@@ -28,10 +28,31 @@ font-family: "Helvetica Neue",Helvetica,Helvetica,Arial,sans-serif;
 
 </style>
 <body>
+<div id="teamMember">
+<button id="scroll" onClick="pageScroll()">></button>
+<button id="scroll" onClick="stopScroll()">停止</button>
+</div>
 <div id="teamPicture"></div>
 <script src="http://d3js.org/d3.v3.min.js"></script>
 <script>
+var scrolldelay;
+var clicked = false;
+var inden = 2;
+function pageScroll() {
+	if (!clicked)
+		scrolldelay = setInterval('scroll()', 100); // scrolls every 100 milliseconds
+	clicked = true;
+}
 
+function scroll() {
+	inden+=2;
+	window.scrollBy(inden, 0); // horizontal and vertical scroll increments
+}
+
+function stopScroll() {
+	clearclearInterval(scrolldelay);
+	clicked = false;
+}
 function getURLParameter(paramName) {
   	var searchString = decodeURI(window.location.search).substring(1);
   	var val;
@@ -47,7 +68,19 @@ function getURLParameter(paramName) {
 }
 
 d3.json("plugin/AnalyseTeamCooperation/getTeamPage", function(error, graph) {
-	var mutiple = graph.sprints.length / 2.5;
+	var nodes = [], links = [];
+	var position = [];
+	var i = 0;
+	graph.nodes.forEach(function(node) {
+		nodes.push(node);
+		position.push({x: 400 * i + 150, y: 250});
+		i++;
+	});
+	graph.links.forEach(function(link) {
+		links.push(link);
+	});
+	
+	var mutiple = graph.sprints / 2.5;
 	var width = 960 * mutiple, height = 560;
 
 	var margin = {top: 20, right: 20, bottom: 20, left: 40},
@@ -58,106 +91,109 @@ d3.json("plugin/AnalyseTeamCooperation/getTeamPage", function(error, graph) {
 	
 	var force = d3.layout.force()
 	    .charge(-1200)
-	    .linkDistance(80)
+	    .linkDistance(150)
 	    .size([width, height]);
 	
 	var svg = d3.select("#teamPicture").append("svg")
 	    .attr("width", width)
 	    .attr("height", height)
 	    .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
-//$.getJSON("plugin/AnalyseTeamCooperation/getTeamPage", {}, function(graph) {
-	var entry = graph.sprints[0];
-	//graph.sprints.forEach(function(entry) {
-		if (entry.nodes == null || entry.nodes.length == 0) return;
-	    console.log(entry);
-
-	    force
-	      .nodes(entry.nodes)
-	      .links(entry.links)
-	      .start();
-
-		var link = svg.selectAll(".link")
-		    .data(entry.links)
-		    .enter().append("line")
-		    .attr("class", "link")
-		    .style("stroke-width", function(d) { return Math.sqrt(d.value); });
 		
-		var group = svg.selectAll(".node")
-		    .data(entry.nodes)
-		    .enter()
-		    .append("g");
-		/*	
-	    group.attr("transform", function(d, i) {
-	    	var x = 78 * i + 100;
-	        var y = 44 * i + 93;
-	        return "translate(" + [x,y] + ")";
-	    });
-		*/
-		
-		var node = group.append("circle")
-		    .attr("class", "node")
-		    .attr("r", function(d) { return d.value; })
-		    .style("fill", function(d) { return color(d.group); })
-		    .call(force.drag)
-		    .attr("fixed", function(d) { d.fixed = true});
-		
-		node.append("title").text(function(d) { return d.name; });
-		var nodeText = group.append("text")
-			.text(function(d) { return d.name; })
-			.attr({ "alignment-baseline": "middle", "text-anchor": "middle" });
+	// 如果沒有node則不需要製造圖型
+	if (graph.nodes == null || graph.nodes.length == 0) return;
 
-		force.on("tick", function() {
-			link.attr("x1", function(d) { return d.source.x; })
-			    .attr("y1", function(d) { return d.source.y; })
-			    .attr("x2", function(d) { return d.target.x; })
-			    .attr("y2", function(d) { return d.target.y; });
-			node.attr("cx", function(d) { return d.x; })
-			    .attr("cy", function(d) { return d.y; });
-			nodeText.attr("x", function(d) { return d.x; })
-					.attr("y", function(d) { return d.y; });
+    force.nodes(nodes)
+		.links(links)
+		.start();
+    
+	// 設定SVG圖型
+	var link = svg.selectAll(".link")
+	    .data(links)
+	    .enter().append("line")
+	    .attr("class", "link")
+	    .style("stroke-width", function(d) { return d.value * 2; });//return Math.sqrt(d.value); });
+	link.append("title").text(function(d) { return "在" + d.story + "個story裡的" + d.task + "個task中pair programming"; });
+	
+	var group = svg.selectAll(".node")
+	    .data(nodes)
+	    .enter()
+	    .append("g");
+	
+	var node = group.append("circle")
+	    .attr("class", "node")
+	    .attr("r", function(d) { return d.value; })
+	    .style("fill", function(d) { return color(d.color); })
+	    .call(force.drag)
+	    .attr("fixed", function(d) { d.fixed = false});
+	node.append("title").text(function(d) { return d.name; });
+	
+	var nodeText = group.append("text")
+		.text(function(d) { return d.name; })
+		.attr({ "alignment-baseline": "middle", "text-anchor": "middle" });
+	
+	// 使用force將圖放到該放的位置
+	force.on("tick",function(e) {
+		//var k = .1 * e.alpha;
+		var k = e.alpha;
+		nodes.forEach(function(d, i) {
+			if (d.collaborationValue > 10) d.collaborationValue = 10
+			else if (d.collaborationValue < -10) d.collaborationValue = -10
+			d.x += (position[d.group].x - d.x) * k;
+			d.y += (position[d.group].y - (25 * d.collaborationValue) - d.y) * k;
 		});
-		
-	    var sprintDomain = [];
-	    for (var i = 0; i <= graph.sprints.length; i++) {
-	    	if (i == 0) sprintDomain.push("");
-	    	else sprintDomain.push("sprint " + i);
-	    }
-	    
-		var x = d3.scale.ordinal()
-			.domain(sprintDomain)
-			.rangePoints([0, width]);
+		  
+		link.attr("x1", function(d) { return d.source.x; })
+		    .attr("y1", function(d) { return d.source.y; })
+		    .attr("x2", function(d) { return d.target.x; })
+		    .attr("y2", function(d) { return d.target.y; });
+		node.attr("cx", function(d) { return d.x; })
+		    .attr("cy", function(d) { return d.y; });
+		nodeText.attr("x", function(d) { return d.x; })
+				.attr("y", function(d) { return d.y; });
+	});
+	
+	
+    var sprintDomain = [];
+    for (var i = 0; i <= graph.sprints; i++) {
+    	if (i == 0) sprintDomain.push("");
+    	else sprintDomain.push("sprint " + i);
+    }
+    
+	var x = d3.scale.ordinal()
+		.domain(sprintDomain)
+		.rangePoints([0, width]);
 
-		var y = d3.scale.ordinal()
-			.domain(["Non Collaboration", "Collaboration", "Pair Programming"])
-		    .rangePoints([heightAxis, 0]);
-	
-		var xAxis = d3.svg.axis()
-		    .scale(x)
-		    .orient("bottom");
-	
-		var yAxis = d3.svg.axis()
-		    .scale(y)
-		    .orient("left");
-		   
-		svg.append("g")
-			.attr("class", "y axis")
-			.call(yAxis)
-			.selectAll("text")
-			.attr("y", 0)
-			.attr("x", function(d) { 
-				if (d == "Non Collaboration") return -140;  
-				else if (d == "Collaboration") return -60;
-				else return 0;
-			})
-			.attr("dy", "1em")
-			.attr("transform", "rotate(90)")
-			.style("text-anchor", "start");
-	
-		svg.append("g")
-		   .attr("class", "x axis")
-		   .attr("transform", "translate(0," + heightAxis + ")")
-		   .call(xAxis);
+	var y = d3.scale.ordinal()
+		.domain(["Non Collaboration", "Collaboration", "Pair Programming"])
+	    .rangePoints([heightAxis, 0]);
 
+	var xAxis = d3.svg.axis()
+	    .scale(x)
+	    .orient("bottom");
+
+	var yAxis = d3.svg.axis()
+	    .scale(y)
+	    .orient("left");
+	   
+	svg.append("g")
+		.attr("class", "y axis")
+		.call(yAxis)
+		.selectAll("text")
+		.attr("y", 0)
+		.attr("x", function(d) { 
+			if (d == "Non Collaboration") return -140;  
+			else if (d == "Collaboration") return -60;
+			else return 0;
+		})
+		.attr("dy", "1em")
+		.attr("transform", "rotate(90)")
+		.style("text-anchor", "start");
+
+	svg.append("g")
+	   .attr("class", "x axis")
+	   .attr("transform", "translate(0," + heightAxis + ")")
+	   .call(xAxis);
+	
 		
 	//});
 

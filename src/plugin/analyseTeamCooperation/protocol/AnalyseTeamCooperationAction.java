@@ -1,11 +1,8 @@
 package plugin.analyseTeamCooperation.protocol;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 
 import javax.servlet.http.HttpSession;
@@ -19,13 +16,13 @@ import org.codehaus.jettison.json.JSONException;
 import org.kohsuke.stapler.StaplerRequest;
 import org.kohsuke.stapler.StaplerResponse;
 
-import com.google.gson.Gson;
-
 import plugin.analyseTeamCooperation.dataModel.ReleasePlanObject;
 import plugin.analyseTeamCooperation.dataModel.SprintObject;
 import plugin.analyseTeamCooperation.dataModel.StoryObject;
 import plugin.analyseTeamCooperation.dataModel.TaskObject;
 import plugin.analyseTeamCooperation.webservice.EzScrumWebServiceController;
+
+import com.google.gson.Gson;
 
 public class AnalyseTeamCooperationAction implements Action {
 	private String mUserName;
@@ -72,6 +69,7 @@ public class AnalyseTeamCooperationAction implements Action {
 			response.setCharacterEncoding("utf-8");
 			response.getWriter().write(new Gson().toJson(result));
 	    	response.getWriter().close();
+	    	System.out.println(new Gson().toJson(result));
 		} catch (IOException e) {
 			e.printStackTrace();
 		} catch (JSONException e) {
@@ -134,45 +132,68 @@ public class AnalyseTeamCooperationAction implements Action {
 			// 分析資料
 			AnalyseTeam team = new AnalyseTeam();
 			List<String> members = new ArrayList<String>();
-			HashMap<String, Integer> memberGroupMap = new HashMap<String, Integer>();
-			List<TeamObject> teamObjects = new ArrayList<TeamObject>();
-			
+			HashMap<String, Integer> totalMemberMap = new HashMap<String, Integer>();
+//			List<TeamObject> teamObjects = new ArrayList<TeamObject>();
+			List<Node> nodes = new ArrayList<Node>();
+			List<Link> links = new ArrayList<Link>();
+			int sprintCount = 0;
+			int nodeCount = 0;
 			for (SprintObject sprint : sprints) {
-				TeamObject teamObject = new TeamObject();
+//				TeamObject teamObject = new TeamObject();
 				List<StoryObject> stories = sprint.storyList;
-				List<Node> nodes = new ArrayList<Node>();
-				List<Link> links = new ArrayList<Link>();
+//				List<Node> nodes = new ArrayList<Node>();
+//				List<Link> links = new ArrayList<Link>();
+				HashMap<String, Integer> workerMap = new HashMap<String, Integer>();
 				for (StoryObject story : stories) {
 					List<TaskObject> tasks = story.taskList;
 					
 					// 解析任務合作狀態
-					String handler = null, partners = null;
+					String handler = null, partners = null, nonCollaborativeHandler = null;
+					boolean isCollaboration = false;
 					for (TaskObject task : tasks) {
 						handler = task.handler;
 						if (handler != null && !handler.isEmpty()) {
-							updateTotalMember(members, memberGroupMap, handler);
-							updateNode(nodes, handler, memberGroupMap.get(handler), Integer.valueOf(task.estimation));
+							partners = task.partners;
+							updateTotalMember(members, totalMemberMap, handler);
+							nodeCount = updateWorkers(nodeCount, workerMap, handler);
+							updateNode(nodes, handler, totalMemberMap.get(handler), Integer.valueOf(task.estimation), sprintCount, false, !partners.isEmpty());
+							
+							// 解析是否為獨立完成Story
+							if (nonCollaborativeHandler == null) {
+								nonCollaborativeHandler = task.handler;
+							} else if (!nonCollaborativeHandler.contentEquals(task.handler)) {
+								isCollaboration = true;	
+							}
 							
 							// 解析partners
-							partners = task.partners;
 							if (partners!= null && !partners.isEmpty()) {
 								String[] partnerList = partners.split(";");
 								for (String partner : partnerList) {
-									updateTotalMember(members, memberGroupMap, partner);
+									updateTotalMember(members, totalMemberMap, partner);
 									// 新增partners為node
-									updateNode(nodes, partner, memberGroupMap.get(partner), Integer.valueOf(task.estimation));
+									updateNode(nodes, partner, totalMemberMap.get(partner), Integer.valueOf(task.estimation), sprintCount, false, true);
 									// 新增handler與partner之間的關係
-									updateLink(links, memberGroupMap.get(handler), memberGroupMap.get(partner));
+//									updateLink(links, totalMemberMap.get(handler), totalMemberMap.get(partner));
+									nodeCount = updateWorkers(nodeCount, workerMap, partner);
+									updateLink(links, workerMap.get(handler), workerMap.get(partner));
 								}
+								updatePartnerAndPartnerLink(links, nodes, workerMap, partnerList, sprintCount);
 							}
 						}
 					}
+					if (!isCollaboration && tasks.size() > 1 && nonCollaborativeHandler != null) {
+						updateNode(nodes, nonCollaborativeHandler, totalMemberMap.get(nonCollaborativeHandler), 0, sprintCount, true, false);
+					}
 				}
-				teamObject.nodes = nodes;
-				teamObject.links = links;
-				teamObjects.add(teamObject);
+//				teamObject.nodes = nodes;
+//				teamObject.links = links;
+//				teamObjects.add(teamObject);
+				sprintCount++;
 			}
-			team.sprints = teamObjects;
+			team.nodes = nodes;
+			team.links = links;
+			team.sprints = sprintCount;
+//			team.sprints = teamObjects;
 			team.members = members;		// add all memebers
 			response.setCharacterEncoding("utf-8");
 			response.getWriter().write(new Gson().toJson(team));
@@ -185,17 +206,40 @@ public class AnalyseTeamCooperationAction implements Action {
         } 
 	}
 	
-	private void updateNode(List<Node> nodes, String handler, Integer group, Integer taskHours) {
+	private void updatePartnerAndPartnerLink(List<Link> links, List<Node> nodes, HashMap<String, Integer> workerMap, String[] partnerList, int sprintCount) {
+		for (int i = 0; i < partnerList.length; i++) {
+			for (int j = i + 1; j < partnerList.length; j++) {
+				updateNode(nodes, partnerList[i], 0, 0, sprintCount, false, true);
+				updateLink(links, workerMap.get(partnerList[i]), workerMap.get(partnerList[j]));
+			}
+		}
+    }
+
+	private int updateWorkers(int nodeCount, HashMap<String, Integer> workerMap, String handler) {
+		if (!workerMap.containsKey(handler)) {
+			workerMap.put(handler, nodeCount);
+			nodeCount++;
+		}
+		return nodeCount;
+    }
+
+	private void updateNode(List<Node> nodes, String handler, Integer color, Integer taskHours, int sprintCount, boolean isNonCollaborative, boolean isPair) {
 		boolean isAdded = false;
 		for (Node node : nodes) {
-			if (node.name.contentEquals(handler)) {
+			if (node.name.contentEquals(handler) && node.group == sprintCount) {
 				node.value += taskHours;
+				node.collaborationValue += isNonCollaborative ? -2 : 0;
+				node.collaborationValue += isPair ? 1 : 0;
 				isAdded = true;
 				break;
 			}
 		}
 		if (!isAdded) {
-			nodes.add(new Node(handler, group, taskHours));
+			Node node = new Node(handler, color, taskHours, sprintCount);
+			node.collaborationValue += isNonCollaborative ? -2 : 0;
+			node.collaborationValue += isPair ? 1 : 0;
+			nodes.add(node);
+			
 		}
     }
 
@@ -252,22 +296,26 @@ public class AnalyseTeamCooperationAction implements Action {
         }
 	}
 
-	public class TeamObject {
-		public int cooperationValue;
-		public LinkedHashMap<String, Integer> cooperationCount;
-		public List<Node> nodes;
-		public List<Link> links;
-	}
+//	public class TeamObject {
+//		public int cooperationValue;
+//		public LinkedHashMap<String, Integer> cooperationCount;
+//		public List<Node> nodes;
+//		public List<Link> links;
+//	}
 	
 	public class Node {
-		public String name;	// 名字
-		public int group;	// 顏色
-		public int value;	// 大小
+		public String name;				// 名字
+		public int color;				// 顏色
+		public int value;				// 大小
+		public int group;				// 哪個sprint
+		public int collaborationValue;	// 合作度
 		
-		public Node(String nodeName, int nodeGroup, int nodeValue) {
+		public Node(String nodeName, int nodeGroup, int nodeValue, int sprintCount) {
 			name = nodeName;
-			group = nodeGroup;
+			color = nodeGroup;
 			value = nodeValue;
+			group = sprintCount;
+			collaborationValue = 0;
         }
 	}
 	
@@ -275,6 +323,8 @@ public class AnalyseTeamCooperationAction implements Action {
 		public int source;	// 來源
 		public int target;	// 目標
 		public int value;	// 粗細
+		public int story;	// 合作的story數量
+		public int task;	// 合作的task數量
 		
 		public Link() {
 			value = 0;
@@ -282,8 +332,11 @@ public class AnalyseTeamCooperationAction implements Action {
 	}
 	
 	public class AnalyseTeam {
-		public List<TeamObject> sprints;
+//		public List<TeamObject> sprints;
+		public List<Node> nodes;
+		public List<Link> links;
 		public List<String> members;
+		int sprints;
 		
 		public AnalyseTeam() {
 		}
