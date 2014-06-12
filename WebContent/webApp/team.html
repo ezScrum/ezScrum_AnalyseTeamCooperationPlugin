@@ -111,8 +111,10 @@ d3.json("plugin/AnalyseTeamCooperation/getTeamPage", function(error, graph) {
 	    .data(links)
 	    .enter().append("line")
 	    .attr("class", "link")
-	    .style("stroke-width", function(d) { return d.value * 2; });//return Math.sqrt(d.value); });
-	link.append("title").text(function(d) { return "在" + d.story + "個story裡的" + d.task + "個task中pair programming"; });
+	    .attr("source", function(d) { return d.source.id; })
+	    .attr("target", function(d) { return d.target.id; })
+	    .style("stroke-width", function(d) { return 0;})//return d.value * 2; });//return Math.sqrt(d.value); });
+	link.append("title").text(function(d) { return "在" + d.story + "個story中有" + d.task + "個task中合作"; });
 	
 	var group = svg.selectAll(".node")
 	    .data(nodes)
@@ -121,14 +123,15 @@ d3.json("plugin/AnalyseTeamCooperation/getTeamPage", function(error, graph) {
 	
 	var node = group.append("circle")
 	    .attr("class", "node")
-	    .attr("r", function(d) { return d.value; })
+	    .attr("id", function(d) { return d.id; })
+	    .attr("r", function(d) { return 0;})//return d.value; })
 	    .style("fill", function(d) { return color(d.color); })
-	    .call(force.drag)
+	    //.call(force.drag)
 	    .attr("fixed", function(d) { d.fixed = false});
 	node.append("title").text(function(d) { return d.name; });
 	
 	var nodeText = group.append("text")
-		.text(function(d) { return d.name; })
+		.text(function(d) { return d.name; })//return ""; })//
 		.attr({ "alignment-baseline": "middle", "text-anchor": "middle" });
 	
 	// 使用force將圖放到該放的位置
@@ -194,9 +197,33 @@ d3.json("plugin/AnalyseTeamCooperation/getTeamPage", function(error, graph) {
 	   .attr("transform", "translate(0," + heightAxis + ")")
 	   .call(xAxis);
 	
+	// 設定成長動畫
+	var speed = 1000, index = 0;
+	setInterval(function(data) {
+		var d = data.doneTask[index];
+		if (d == null) {
+			clearInterval(this);
+			return;
+		}
+		if (d.nodeId != null && d.nodeId.length > 0) {
+			d.nodeId.forEach(function(id) {
+				node[0][id].setAttribute("r", parseInt(node[0][id].getAttribute("r")) + d.value);
+			});
+		}
+		if (d.linkId != null && d.linkId.length > 0) {
+			d.linkId.forEach(function(id) {
+				link[0][id].style.strokeWidth = parseInt(link[0][id].style.strokeWidth) + 1;
+			});
+		}
+		//var n = node.filter(function(d) {return d.id == 0});
+		//n.attr("r", function(d) {return d.r + 1;});
+		//svg.select("#id-" + data.node).attr("r", function(d) { return 29;});
+		index++;
+	}, speed, graph);
+
+	
 		
 	//});
-
    /**/
 });
 
