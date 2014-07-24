@@ -14,7 +14,7 @@ Plugin.analyseTeamCooperation.projectLeftTree.TreePlugin = Ext.extend(Object, {
 			iconCls:'None',
         	cls:'treepanel-parent',
 			children : [
-		    {
+/*		    {
 		    	id:'analysisByStory',
 				text : '<u>Analysis by Story</u>', 
 		    	cls:'treepanel-leaf',
@@ -27,7 +27,7 @@ Plugin.analyseTeamCooperation.projectLeftTree.TreePlugin = Ext.extend(Object, {
 						Ext.getCmp('left_panel').Plugin_Clicked = true;
 					}
 				}
-			}, 
+			}, */
 			{
 				id:'analysisByTeam',
 				text : '<u>Analysis by Team</u>',

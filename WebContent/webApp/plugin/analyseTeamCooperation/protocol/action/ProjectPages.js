@@ -341,7 +341,8 @@ Plugin.analyseTeamCooperation.teamPage = Ext.extend(Ext.Panel, {
 				var chartPanel = Ext.getCmp('analyseTeamCooperation_teamCartPanel_ID');
 				chartPanel.removeAll();
 				chartPanel.add({
-						html: '<iframe src="pluginWorkspace/AnalyseTeamCooperationPlugin/webApp/team.html?' + queryString + '" width="1000" height="600" frameborder="0" scrolling="auto"></iframe>',
+						html: '<iframe src="pluginWorkspace/AnalyseTeamCooperationPlugin/webApp/team.html?' + queryString + '" width="1100" height="740" frameborder="0" scrolling="auto"></iframe>',
+						//html: '<div id="storyPic></div>',
 						border: false
 					}
 				);

@@ -2,57 +2,114 @@
 <meta charset="utf-8">
 <style>
 body {
-font-family: "Helvetica Neue",Helvetica,Helvetica,Arial,sans-serif;
+	font-family: "Helvetica Neue",Helvetica,Helvetica,Arial,sans-serif;
+}
+
+.node-text {
+	cursor: pointer;
 }
 
 .node {
-  stroke: #fff;
-  stroke-width: 1.5px;
+	stroke: #fff;
+	stroke-width: 1.5px;
+	cursor: pointer;	
+}
+
+.node.selected {
+	stroke: red;
+	stroke-opacity: .6;
+	stroke-width: 3;
+}
+
+.node.no-selected {
+	stroke: #999;
+	stroke-opacity: .6;
 }
 
 .link {
-  stroke: #999;
-  stroke-opacity: .6;
+	stroke: #2f6bb7;
+	stroke-opacity: .6;
+}
+
+.link.selected {
+	stroke: red;
+	stroke-opacity: .6;
+}
+
+.link.no-selected {
+	stroke: #999;
+	stroke-opacity: .6;
 }
 
 .axis text {
-  font: 16px sans-serif;
+	font: 16px sans-serif;
 }
 
 .axis path,
 .axis line {
-  fill: none;
-  stroke: #000;
-  shape-rendering: crispEdges;
+	fill: none;
+	stroke: #000;
+	shape-rendering: crispEdges;
 }
+
+.btn {
+    border: 1px solid #CCC;
+    background: #EEF0F2;
+    text-decoration: none;
+    border-radius: 4px;
+    padding: 7px 18px;
+    margin: 11px;
+    /*float: right;*/
+    font-size: 14px;
+    color: #4a4a4a;
+    border-color: rgba(0, 0, 0, 0.1) rgba(0, 0, 0, 0.1) rgba(0, 0, 0, 0.25);
+    cursor: pointer;
+}
+
+.btn:hover {
+    background: #AAA;
+}
+
+#teamMember {
+	position: fixed;
+	left: 20px;
+}
+
+#speedUp {
+	position: fixed;
+	/*top: 60px;*/
+	left: 120px;
+}
+
+#speedDown {
+	position: fixed;
+	/*top: 115px;*/
+	left: 220px;
+}
+
+progress, #downloadProgress, #progUpdate {float:left;}
+progress, #downloadProgress {margin-right:10px;}
 
 </style>
 <body>
 <div id="teamMember">
-<button id="scroll" onClick="pageScroll()">></button>
-<button id="scroll" onClick="stopScroll()">停止</button>
+	<h3 style="position: fixed; left: 310px;">速率:</h3>
+	<h3 id="speed" style="position: fixed; left: 360px;">1 X</h3>
+	<button type="button" id="speedUp" class="btn" onClick="speedUp()">加速</button>
+	<button type="button" id="speedDown" class="btn" onClick="speedDown()">減速</button>
+	<button type="button" id="stop" class="btn" onClick="stopDraw()">停止</button>
+	<button type="button" id="run" class="btn" onClick="startDraw()" style="display: none;">開始</button>
 </div>
+<!-- <progress value="0" max="10" id="progBar">
+    <span id="downloadProgress">
+    </span>
+</progress> -->
+
 <div id="teamPicture"></div>
+<script src="./plugin/analyseTeamCooperation/protocol/lib/jquery-1.11.1.js"></script>
 <script src="http://d3js.org/d3.v3.min.js"></script>
 <script>
-var scrolldelay;
-var clicked = false;
-var inden = 2;
-function pageScroll() {
-	if (!clicked)
-		scrolldelay = setInterval('scroll()', 100); // scrolls every 100 milliseconds
-	clicked = true;
-}
 
-function scroll() {
-	inden+=2;
-	window.scrollBy(inden, 0); // horizontal and vertical scroll increments
-}
-
-function stopScroll() {
-	clearclearInterval(scrolldelay);
-	clicked = false;
-}
 function getURLParameter(paramName) {
   	var searchString = decodeURI(window.location.search).substring(1);
   	var val;
@@ -67,53 +124,84 @@ function getURLParameter(paramName) {
   	return null;
 }
 
+var speed = 1000, index = 0, stop = 0;
+var color = d3.scale.category20();
+
 d3.json("plugin/AnalyseTeamCooperation/getTeamPage", function(error, graph) {
-	var nodes = [], links = [];
-	var position = [];
-	var i = 0;
+	/**
+	 *--------------
+	 * 準備資料
+	 *--------------
+	 */
+	var nodes = [], links = [], position = [], sprintDomain = [];
+	//var mutiple = graph.sprints / 2.5;
+	var sprintWidth = 370;
+	var width = sprintWidth * graph.sprints + sprintWidth * 2, height = 640;
+	var margin = {top: 20, right: 40, bottom: 25, left: 25},
+		widthAxis = width - margin.left - margin.right,
+		heightAxis = height - margin.top - margin.bottom;
+	
+	for (var i = 0; i <= graph.sprints; i++) {
+		position.push({x: (sprintWidth * i) + margin.left + sprintWidth / 2, y: height / 2});
+	}
+	
 	graph.nodes.forEach(function(node) {
 		nodes.push(node);
-		position.push({x: 400 * i + 150, y: 250});
-		i++;
 	});
 	graph.links.forEach(function(link) {
 		links.push(link);
 	});
 	
-	var mutiple = graph.sprints / 2.5;
-	var width = 960 * mutiple, height = 560;
-
-	var margin = {top: 20, right: 20, bottom: 20, left: 40},
-		widthAxis = width - margin.left - margin.right,
-		heightAxis = height - margin.top - margin.bottom;
-	
-	var color = d3.scale.category20();
-	
 	var force = d3.layout.force()
-	    .charge(-1200)
-	    .linkDistance(150)
+	    .charge(-3000)
+	    .linkDistance(200)
 	    .size([width, height]);
-	
+
 	var svg = d3.select("#teamPicture").append("svg")
 	    .attr("width", width)
 	    .attr("height", height)
 	    .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
-		
+    
+    for (var i = 1; i <= graph.sprints + 1; i++) {
+    	//if (i == 0) sprintDomain.push("");
+    	//else 
+    		sprintDomain.push("sprint " + i);
+    }
+    
+	var x = d3.scale.ordinal()
+		.domain(sprintDomain)
+		.rangePoints([0, sprintWidth * (graph.sprints)]);
+	
+	var xAxis = d3.svg.axis()
+	    .scale(x)
+	    .orient("bottom");
+	
+	svg.append("g")
+	   .attr("class", "x axis")
+	   .attr("transform", "translate(" + margin.left + "," + heightAxis + ")")
+	   .call(xAxis);
+	
 	// 如果沒有node則不需要製造圖型
 	if (graph.nodes == null || graph.nodes.length == 0) return;
-
+	
+	/**
+	 *--------------
+	 * 造圖囉
+	 * 設定SVG圖型
+	 *--------------
+	 */
     force.nodes(nodes)
 		.links(links)
 		.start();
     
-	// 設定SVG圖型
 	var link = svg.selectAll(".link")
 	    .data(links)
 	    .enter().append("line")
 	    .attr("class", "link")
+	    .attr("group", function(d) { return d.group; })
 	    .attr("source", function(d) { return d.source.id; })
 	    .attr("target", function(d) { return d.target.id; })
-	    .style("stroke-width", function(d) { return 0;})//return d.value * 2; });//return Math.sqrt(d.value); });
+	    .style("stroke-width", function(d) { return 0;});//return d.value  + 2; });////return Math.sqrt(d.value); });
 	link.append("title").text(function(d) { return "在" + d.story + "個story中有" + d.task + "個task中合作"; });
 	
 	var group = svg.selectAll(".node")
@@ -124,27 +212,58 @@ d3.json("plugin/AnalyseTeamCooperation/getTeamPage", function(error, graph) {
 	var node = group.append("circle")
 	    .attr("class", "node")
 	    .attr("id", function(d) { return d.id; })
-	    .attr("r", function(d) { return 0;})//return d.value; })
+	    .attr("group", function(d) { return d.group; })
+	    .attr("r", function(d) { return 0;})//return d.value; })//
 	    .style("fill", function(d) { return color(d.color); })
 	    //.call(force.drag)
+	    .on("click", function(d) {
+	    	lightObjects(nodes, node, link, d);
+	    })
 	    .attr("fixed", function(d) { d.fixed = false});
-	node.append("title").text(function(d) { return d.name; });
+	node.append("title").text(function(d) { return "own " + d.task + " tasks"; });
 	
 	var nodeText = group.append("text")
-		.text(function(d) { return d.name; })//return ""; })//
+    	.attr("class", "node-text")
+    	.attr("id", function(d) { return d.id; })
+	    .attr("group", function(d) { return d.group; })
+ 		.on("click", function(d) {
+ 			lightObjects(nodes, node, link, d);
+	    })	    
+		.text(function(d) { return d.name; })//return ""; })
 		.attr({ "alignment-baseline": "middle", "text-anchor": "middle" });
-	
-	// 使用force將圖放到該放的位置
+	nodeText.append("title").text(function(d) { return "own " + d.task + " tasks"; });
+	var progress = svg.selectAll(".progress-bar")
+						.data(nodes)
+						.enter().append("progress");
+		
+	/**
+	 *--------------
+	 * 繪圖囉
+	 *--------------
+	 */	
+	// 將圖放到該放的位置
 	force.on("tick",function(e) {
 		//var k = .1 * e.alpha;
+		//var k = .8 * e.alpha;
 		var k = e.alpha;
 		nodes.forEach(function(d, i) {
-			if (d.collaborationValue > 10) d.collaborationValue = 10
-			else if (d.collaborationValue < -10) d.collaborationValue = -10
+			//if (d.collaborationValue > 10) d.collaborationValue = 10
+			//else if (d.collaborationValue < -10) d.collaborationValue = -10
+			if (d.group ==2) {
+				console.log("d.x = " + d.x + " + " + (position[d.group].x - d.x));
+			}
 			d.x += (position[d.group].x - d.x) * k;
-			d.y += (position[d.group].y - (25 * d.collaborationValue) - d.y) * k;
+			d.y += (position[d.group].y - d.y) * k;
 		});
-		  
+		
+		/*
+		var q = d3.geom.quadtree(nodes),
+      		i = 0,
+      		n = nodes.length;
+
+ 		while (++i < n) q.visit(collide(nodes[i]));		
+		*/
+		
 		link.attr("x1", function(d) { return d.source.x; })
 		    .attr("y1", function(d) { return d.source.y; })
 		    .attr("x2", function(d) { return d.target.x; })
@@ -155,77 +274,166 @@ d3.json("plugin/AnalyseTeamCooperation/getTeamPage", function(error, graph) {
 				.attr("y", function(d) { return d.y; });
 	});
 	
-	
-    var sprintDomain = [];
-    for (var i = 0; i <= graph.sprints; i++) {
-    	if (i == 0) sprintDomain.push("");
-    	else sprintDomain.push("sprint " + i);
-    }
-    
-	var x = d3.scale.ordinal()
-		.domain(sprintDomain)
-		.rangePoints([0, width]);
-
-	var y = d3.scale.ordinal()
-		.domain(["Non Collaboration", "Collaboration", "Pair Programming"])
-	    .rangePoints([heightAxis, 0]);
-
-	var xAxis = d3.svg.axis()
-	    .scale(x)
-	    .orient("bottom");
-
-	var yAxis = d3.svg.axis()
-	    .scale(y)
-	    .orient("left");
-	   
-	svg.append("g")
-		.attr("class", "y axis")
-		.call(yAxis)
-		.selectAll("text")
-		.attr("y", 0)
-		.attr("x", function(d) { 
-			if (d == "Non Collaboration") return -140;  
-			else if (d == "Collaboration") return -60;
-			else return 0;
-		})
-		.attr("dy", "1em")
-		.attr("transform", "rotate(90)")
-		.style("text-anchor", "start");
-
-	svg.append("g")
-	   .attr("class", "x axis")
-	   .attr("transform", "translate(0," + heightAxis + ")")
-	   .call(xAxis);
-	
-	// 設定成長動畫
-	var speed = 1000, index = 0;
-	setInterval(function(data) {
+	var currentSprint = 1;
+	function dynamicAnalysis(data) {
 		var d = data.doneTask[index];
-		if (d == null) {
-			clearInterval(this);
-			return;
-		}
-		if (d.nodeId != null && d.nodeId.length > 0) {
-			d.nodeId.forEach(function(id) {
-				node[0][id].setAttribute("r", parseInt(node[0][id].getAttribute("r")) + d.value);
-			});
-		}
-		if (d.linkId != null && d.linkId.length > 0) {
-			d.linkId.forEach(function(id) {
-				link[0][id].style.strokeWidth = parseInt(link[0][id].style.strokeWidth) + 1;
-			});
-		}
-		//var n = node.filter(function(d) {return d.id == 0});
-		//n.attr("r", function(d) {return d.r + 1;});
-		//svg.select("#id-" + data.node).attr("r", function(d) { return 29;});
-		index++;
-	}, speed, graph);
+		if (!stop) {
+			if (d == null) {
+				return;
+			}
+			if (d.nodeId != null && d.nodeId.length > 0) {
+				d.nodeId.forEach(function(id) {
+					if (parseInt(node[0][id].getAttribute("r")) > 15) {
+						if (parseInt(node[0][id].getAttribute("r")) < 65)
+							node[0][id].setAttribute("r", parseInt(node[0][id].getAttribute("r")) + d.value);
+					} else {
+						node[0][id].setAttribute("r", parseInt(node[0][id].getAttribute("r")) + d.value + 2);						
+					}
+				});
+			}
+			if (d.linkId != null && d.linkId.length > 0) {
+				d.linkId.forEach(function(id) {
+					if (parseInt(link[0][id].style.strokeWidth) > 15) {
+						link[0][id].style.strokeWidth = parseInt(link[0][id].style.strokeWidth) + 1;
+					} else {
+						link[0][id].style.strokeWidth = parseInt(link[0][id].style.strokeWidth) + 3;
+					}
+				});
+			}
+			
+			if (currentSprint != d.sprints) {
+				currentSprint = d.sprints;
+				if (currentSprint > 2)
+					window.scrollBy(sprintWidth, 0);
+			}
+			index++;
 
+			if (d.dropCount > 0) {
+				setDroped(d.sprints + 1, d.dropCount);
+			}
+		}
+		setTimeout(dynamicAnalysis, speed, data);
+	}
 	
-		
-	//});
-   /**/
+	dynamicAnalysis(graph);
+	
+	function setDroped(index, droped) {
+		sprintDomain[index - 1] = "sprint " + index + " (" + droped + " Droped)"
+		var x = d3.scale.ordinal()
+			.domain(sprintDomain)
+			.rangePoints([0, sprintWidth * (graph.sprints)]);
+	
+		var xAxis = d3.svg.axis()
+		    .scale(x)
+		    .orient("bottom");
+		svg.select(".x.axis").call(xAxis);
+	}
 });
+
+function collide(node) {
+  var r = node.radius + 16,
+      nx1 = node.x - r,
+      nx2 = node.x + r,
+      ny1 = node.y - r,
+      ny2 = node.y + r;
+  return function(quad, x1, y1, x2, y2) {
+    if (quad.point && (quad.point !== node)) {
+      var x = node.x - quad.point.x,
+          y = node.y - quad.point.y,
+          l = Math.sqrt(x * x + y * y),
+          r = node.radius + quad.point.radius;
+      if (l < r) {
+        l = (l - r) / l * .5;
+        node.x -= x *= l;
+        node.y -= y *= l;
+        quad.point.x += x;
+        quad.point.y += y;
+      }
+    }
+    return x1 > nx2 || x2 < nx1 || y1 > ny2 || y2 < ny1;
+  };
+}
+
+/**
+ *--------------
+ * 點擊node事件 (點到的node相關聯的將會發亮，其他則變暗)
+ *--------------
+ */
+function lightObjects(nodes, node, link, d) {
+	node[0].forEach(function(n) {
+		var group = n.getAttribute("group");
+		if (d.group == group && d.id == n.id) {			// node點到的變亮
+			updateNodeLight(node, n.id, color(d.color), "node selected");
+			updateLinkLight(link, node, nodes, d);
+		} else if (d.group == group && d.id != n.id) {	// node沒有點到的變暗
+			updateNodeLight(node, n.id, "rgb(150, 150, 150)", "node no-selected");
+			updateLinkLight(link, node, nodes, d);
+		} else if (d.group != group) {					// 將其他sprint的node變回原樣
+			updateNodeLight(node, n.id, color(nodes[n.id].color), "node");
+		} 
+	});
+}
+
+function updateNodeLight(node, index, colorStyle, classAttr) {
+	node[0][index].setAttribute("class", classAttr);
+	node[0][index].style.fill = colorStyle;
+	if (classAttr == "node selected") {
+		node[0][index].style.strokeDasharray = "10,3";
+	} else {
+		node[0][index].style.strokeDasharray = "";
+	}
+}
+
+function updateLinkLight(link, node, nodes, d) {
+	link[0].forEach(function(l) {
+		var source = l.getAttribute("source");
+		var target = l.getAttribute("target");
+		var group = l.getAttribute("group");
+		if (d.group == group && d.id == source) {			// 點到變亮
+			l.setAttribute("class", "link selected");
+			updateNodeLight(node, target, color(nodes[target].color), "node selected");
+		} else if (d.group == group && d.id == target) {	// 點到變亮
+			l.setAttribute("class", "link selected");
+			updateNodeLight(node, source, color(nodes[source].color), "node selected");
+		} else if (d.group == group && d.id != l.getAttribute("source")) {	// 沒有點到的變暗
+			l.setAttribute("class", "link no-selected");
+		} else if (d.group != group) {						// 除此sprint外 ，其他sprint回復原本狀態
+			l.setAttribute("class", "link");
+		}
+	});
+}
+
+/**
+ *--------------
+ * 按鈕事件
+ *--------------
+ */
+function speedUp() {
+	var speedText = $("#speed").text().split(" ")[0];
+	if (speed > 100) {
+		speed -= 100;
+		$("#speed").text(++speedText + " X")
+	}
+}
+
+function speedDown() {
+	var speedText = $("#speed").text().split(" ")[0];
+	speed += 100;
+	$("#speed").text(--speedText + " X");
+}
+
+function startDraw() {
+	stop = 0;
+	$("#stop").show();
+	$("#run").hide();
+}
+
+function stopDraw() {
+	stop = 1;
+	$("#stop").hide();
+	$("#run").show();
+}
+
 
 
 </script>
