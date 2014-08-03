@@ -87,8 +87,23 @@ body {
 	left: 220px;
 }
 
-progress, #downloadProgress, #progUpdate {float:left;}
-progress, #downloadProgress {margin-right:10px;}
+.progress-bar {
+	width: 100px;
+	height: 20px;
+}
+
+.progress {
+  border: solid 1px #ccc;
+}
+
+.progress .value {
+  background: #3182bd;
+}
+
+input#btnUpload {background:#999;border:1px solid #666;color:#fff;cursor:pointer;display:block;margin:0 0 10px;outline:none;padding:5px;}
+progress, .downloadProgress, .progUpdate {float:left;}
+progress, .downloadProgress {margin-right:10px;}
+.progUpdate, .downloadProgress {font:12px Arial, Verdana, sans-serif;color:#000;}
 
 </style>
 <body>
@@ -100,10 +115,8 @@ progress, #downloadProgress {margin-right:10px;}
 	<button type="button" id="stop" class="btn" onClick="stopDraw()">停止</button>
 	<button type="button" id="run" class="btn" onClick="startDraw()" style="display: none;">開始</button>
 </div>
-<!-- <progress value="0" max="10" id="progBar">
-    <span id="downloadProgress">
-    </span>
-</progress> -->
+<!---->  <progress value="5" max="10">
+</progress>
 
 <div id="teamPicture"></div>
 <script src="./plugin/analyseTeamCooperation/protocol/lib/jquery-1.11.1.js"></script>
@@ -232,14 +245,19 @@ d3.json("plugin/AnalyseTeamCooperation/getTeamPage", function(error, graph) {
 		.text(function(d) { return d.name; })//return ""; })
 		.attr({ "alignment-baseline": "middle", "text-anchor": "middle" });
 	nodeText.append("title").text(function(d) { return "own " + d.task + " tasks"; });
-	var progress = svg.selectAll(".progress-bar")
+	
+	var progress = svg.selectAll("progress")
 						.data(nodes)
-						.enter().append("progress");
-		
+						.enter().append("progress")
+						.attr("value", "0")
+						.attr("max", "10")
+						.attr("x", function(d) { return 200; })
+						.attr("y", function(d) { return 200; });
+	progress.append("span").attr("class", "downloadProgress");
+	
 	/**
 	 *--------------
-	 * 繪圖囉
-	 *--------------
+	 * 繪圖囉7
 	 */	
 	// 將圖放到該放的位置
 	force.on("tick",function(e) {
@@ -247,11 +265,6 @@ d3.json("plugin/AnalyseTeamCooperation/getTeamPage", function(error, graph) {
 		//var k = .8 * e.alpha;
 		var k = e.alpha;
 		nodes.forEach(function(d, i) {
-			//if (d.collaborationValue > 10) d.collaborationValue = 10
-			//else if (d.collaborationValue < -10) d.collaborationValue = -10
-			if (d.group ==2) {
-				console.log("d.x = " + d.x + " + " + (position[d.group].x - d.x));
-			}
 			d.x += (position[d.group].x - d.x) * k;
 			d.y += (position[d.group].y - d.y) * k;
 		});
@@ -401,6 +414,31 @@ function updateLinkLight(link, node, nodes, d) {
 			l.setAttribute("class", "link");
 		}
 	});
+}
+
+function sss() {
+    var bar = document.getElementById('progBar'),
+        fallback = document.getElementById('downloadProgress'),
+        loaded = 0;
+
+    var load = function() {
+        loaded += 1;
+        bar.value = loaded;
+
+        /* The below will be visible if the progress tag is not supported */
+        $(fallback).empty().append("HTML5 progress tag not supported: ");
+        $('#progUpdate').empty().append(loaded + "% loaded");
+
+        if (loaded == 100) {
+            clearInterval(beginLoad);
+            $('#progUpdate').empty().append("Upload Complete");
+            console.log('Load was performed.');
+        }
+    };
+
+    var beginLoad = setInterval(function() {
+        load();
+    }, 50);
 }
 
 /**
